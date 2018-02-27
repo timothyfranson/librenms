@@ -12,7 +12,7 @@ function bulk_sensor_snmpget($device, $sensors)
             return $data['sensor_oid'];
         }, $chunk);
         $oids = implode(' ', $oids);
-        $multi_response = snmp_get_multi_oid($device, $oids, '-OUQnt');
+        $multi_response = snmp_get_multi_oid($device, $oids, '-OUQnte');
         $cache = array_merge($cache, $multi_response);
     }
     return $cache;
@@ -166,7 +166,8 @@ function record_sensor_data($device, $all_sensors)
         }
 
         $rrd_name = get_sensor_rrd_name($device, $sensor);
-        $rrd_def = RrdDefinition::make()->addDataset('sensor', 'GAUGE', -20000, 20000);
+
+        $rrd_def = RrdDefinition::make()->addDataset('sensor', 'GAUGE');
 
         echo "$sensor_value $unit\n";
 
@@ -419,7 +420,7 @@ function poll_mib_def($device, $mib_name_table, $mib_subdir, $mib_oids, $mib_gra
     list($mib, $file) = explode(':', $mib_name_table, 2);
 
     if (is_null($rrd_name)) {
-        if (str_contains($mib_name_table, 'UBNT', true)) {
+        if (str_i_contains($mib_name_table, 'UBNT')) {
             $rrd_name = strtolower($mib);
         } else {
             $rrd_name = strtolower($file);

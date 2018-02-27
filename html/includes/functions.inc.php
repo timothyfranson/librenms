@@ -90,8 +90,14 @@ function nicecase($item)
         case 'os-updates':
             return 'OS Updates';
 
+        case 'smart':
+            return 'SMART';
+
         case 'powerdns-recursor':
             return 'PowerDNS Recursor';
+
+        case 'powerdns-dnsdist':
+            return 'PowerDNS dnsdist';
 
         case 'dhcp-stats':
             return 'DHCP Stats';
@@ -125,6 +131,12 @@ function nicecase($item)
 
         case 'pi-hole':
             return 'Pi-hole';
+
+        case 'freeradius':
+            return 'FreeRADIUS';
+
+        case 'zfs':
+            return 'ZFS';
 
         default:
             return ucfirst($item);
@@ -173,7 +185,7 @@ function toner2colour($descr, $percent)
  */
 function linkify($text)
 {
-    $regex = "/(http|https|ftp|ftps):\/\/[a-z0-9\-.]+\.[a-z]{2,5}(\/\S*)?/i";
+    $regex = "#(http|https|ftp|ftps)://[a-z0-9\-.]*[a-z0-9\-]+(/\S*)?#i";
 
     return preg_replace($regex, '<a href="$0">$0</a>', $text);
 }
@@ -592,13 +604,13 @@ function print_percentage_bar($width, $height, $percent, $left_text, $left_colou
     }
 
     $output = '
-        <div class="container" style="width:' . $width . 'px; height:' . $height . 'px;">
-        <div class="progress" style="min-width: 2em; background-color:#' . $right_background . '; height:' . $height . 'px;">
-        <div class="progress-bar" role="progressbar" aria-valuenow="' . $size_percent . '" aria-valuemin="0" aria-valuemax="100" style="min-width: 2em; width:' . $size_percent . '%; background-color: #' . $left_background . ';">
+        <div style="width:'.$width.'px; height:'.$height.'px; position: relative;">
+        <div class="progress" style="min-width: 2em; background-color:#'.$right_background.'; height:'.$height.'px;margin-bottom:-'.$height.'px;">
+        <div class="progress-bar" role="progressbar" aria-valuenow="'.$size_percent.'" aria-valuemin="0" aria-valuemax="100" style="min-width: 2em; width:'.$size_percent.'%; background-color: #'.$left_background.';">
         </div>
         </div>
-        <b class="pull-left" style="padding-left: 4px; height: ' . $height . 'px;margin-top:-' . ($height * 2) . 'px; color:#' . $left_colour . ';">' . $left_text . '</b>
-        <b class="pull-right" style="padding-right: 4px; height: ' . $height . 'px;margin-top:-' . ($height * 2) . 'px; color:#' . $right_colour . ';">' . $right_text . '</b>
+        <b style="padding-left: 2%; position: absolute; top: 0px; left: 0px;color:#'.$left_colour.';">'.$left_text.'</b>
+        <b style="padding-right: 2%; position: absolute; top: 0px; right: 0px;color:#'.$right_colour.';">'.$right_text.'</b>
         </div>
         ';
 
@@ -745,14 +757,18 @@ function print_port_thumbnail($args)
 function print_optionbar_start($height = 0, $width = 0, $marginbottom = 5)
 {
     echo '
-        <div class="well well-sm">
+        <div class="panel panel-default">
+        <div class="panel-heading">
         ';
 }//end print_optionbar_start()
 
 
 function print_optionbar_end()
 {
-    echo '  </div>';
+    echo '
+        </div>
+        </div>
+        ';
 }//end print_optionbar_end()
 
 
@@ -1251,8 +1267,10 @@ function generate_dynamic_config_panel($title, $config_groups, $items = array(),
             if ($item['type'] == 'checkbox') {
                 $output .= '<input id="' . $item['name'] . '" type="checkbox" name="global-config-check" ' . $config_groups[$item['name']]['config_checked'] . ' data-on-text="Yes" data-off-text="No" data-size="small" data-config_id="' . $config_groups[$item['name']]['config_id'] . '">';
             } elseif ($item['type'] == 'text') {
+                $pattern = isset($item['pattern']) ? ' pattern="' . $item['pattern'] . '"' : "";
+                $pattern .= isset($item['required']) && $item['required'] ? " required" : "";
                 $output .= '
-                <input id="' . $item['name'] . '" class="form-control" type="text" name="global-config-input" value="' . $config_groups[$item['name']]['config_value'] . '" data-config_id="' . $config_groups[$item['name']]['config_id'] . '">
+                <input id="' . $item['name'] . '" class="form-control validation" type="text" name="global-config-input" value="' . $config_groups[$item['name']]['config_value'] . '" data-config_id="' . $config_groups[$item['name']]['config_id'] . '"' . $pattern . '>
                 <span class="form-control-feedback"><i class="fa" aria-hidden="true"></i></span>
                 ';
             } elseif ($item['type'] == 'password') {
@@ -1435,17 +1453,17 @@ function eventlog_severity($eventlog_severity)
 {
     switch ($eventlog_severity) {
         case 1:
-            return "severity-ok"; //OK
+            return "label-success"; //OK
         case 2:
-            return "severity-info"; //Informational
+            return "label-info"; //Informational
         case 3:
-            return "severity-notice"; //Notice
+            return "label-primary"; //Notice
         case 4:
-            return "severity-warning"; //Warning
+            return "label-warning"; //Warning
         case 5:
-            return "severity-critical"; //Critical
+            return "label-danger"; //Critical
         default:
-            return "severity-unknown"; //Unknown
+            return "label-default"; //Unknown
     }
 } // end eventlog_severity
 
@@ -1656,4 +1674,49 @@ function generate_stacked_graphs($transparency = '88')
     } else {
         return array('transparency' => '', 'stacked' => '-1');
     }
+}
+
+/**
+ * Get the ZFS pools for a device... just requires the device ID
+ * an empty return means ZFS is not in use or there are currently no pools
+ * @param $device_id
+ * @return array
+ */
+function get_zfs_pools($device_id)
+{
+    $options=array(
+        'filter' => array(
+             'type' => array('=', 'zfs'),
+        ),
+    );
+
+    $component=new LibreNMS\Component();
+    $zfsc=$component->getComponents($device_id, $options);
+
+    if (isset($zfsc[$device_id])) {
+        $id = $component->getFirstComponentID($zfsc, $device_id);
+        return json_decode($zfsc[$device_id][$id]['pools']);
+    }
+
+    return array();
+}
+
+/**
+ * Returns the sysname of a device with a html line break prepended.
+ * if the device has an empty sysname it will return device's hostname instead
+ * And finally if the device has no hostname it will return an empty string
+ * @param device array
+ * @return string
+ */
+function get_device_name($device)
+{
+    $ret_str = '';
+
+    if (format_hostname($device) !== $device['sysName']) {
+        $ret_str = $device['sysName'];
+    } elseif ($device['hostname'] !== $device['ip']) {
+        $ret_str = $device['hostname'];
+    }
+
+    return $ret_str;
 }

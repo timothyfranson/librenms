@@ -33,6 +33,10 @@ if (Config::get('api.cors.enabled') === true) {
 require $config['install_dir'] . '/html/includes/api_functions.inc.php';
 $app->setName('api');
 
+$app->notFound(function () use ($app) {
+    api_error(404, "This API route doesn't exist.");
+});
+
 $app->group(
     '/api',
     function () use ($app) {
@@ -52,6 +56,7 @@ $app->group(
                         $app->get('/:hostname', 'authToken', 'get_device')->name('get_device');
                         // api/v0/devices/$hostname
                         $app->patch('/:hostname', 'authToken', 'update_device')->name('update_device_field');
+                        $app->patch('/:hostname/rename/:new_hostname', 'authToken', 'rename_device')->name('rename_device');
                         $app->get('/:hostname/vlans', 'authToken', 'get_vlans')->name('get_vlans');
                         // api/v0/devices/$hostname/vlans
                         $app->get('/:hostname/graphs', 'authToken', 'get_graphs')->name('get_graphs');
@@ -108,6 +113,11 @@ $app->group(
                     function () use ($app) {
                         $app->get('/:bill_id', 'authToken', 'list_bills')->name('get_bill');
                         // api/v0/bills/$bill_id
+                        $app->get('/:bill_id/graphs/:graph_type', 'authToken', 'get_bill_graph')->name('get_bill_graph');
+                        $app->get('/:bill_id/graphdata/:graph_type', 'authToken', 'get_bill_graphdata')->name('get_bill_graphdata');
+                        $app->get('/:bill_id/history', 'authToken', 'get_bill_history')->name('get_bill_history');
+                        $app->get('/:bill_id/history/:bill_hist_id/graphs/:graph_type', 'authToken', 'get_bill_history_graph')->name('get_bill_history_graph');
+                        $app->get('/:bill_id/history/:bill_hist_id/graphdata/:graph_type', 'authToken', 'get_bill_history_graphdata')->name('get_bill_history_graphdata');
                     }
                 );
                 $app->get('/bills', 'authToken', 'list_bills')->name('list_bills');
@@ -154,6 +164,9 @@ $app->group(
                 $app->group(
                     '/routing',
                     function () use ($app) {
+                        $app->get('/bgp/cbgp', 'authToken', 'list_cbgp')->name('list_cbgp');
+                        $app->get('/vrf', 'authToken', 'list_vrf')->name('list_vrf');
+                        $app->get('/vrf/:id', 'authToken', 'get_vrf')->name('get_vrf');
                         $app->group(
                             '/ipsec',
                             function () use ($app) {
@@ -167,10 +180,15 @@ $app->group(
                 $app->group(
                     '/resources',
                     function () use ($app) {
+                        $app->get('/locations', 'authToken', 'list_locations')->name('list_locations');
+                        $app->get('/vlans', 'authToken', 'list_vlans')->name('list_vlans');
                         $app->group(
                             '/ip',
                             function () use ($app) {
+                                $app->get('/addresses/', 'authToken', 'list_ip_addresses')->name('list_ip_addresses');
                                 $app->get('/arp/:ip', 'authToken', 'list_arp')->name('list_arp')->conditions(array('ip' => '[^?]+'));
+                                $app->get('/networks/', 'authToken', 'list_ip_networks')->name('list_ip_networks');
+                                $app->get('/networks/:id/ip', 'authToken', 'get_ip_addresses')->name('get_network_ip_addresses');
                             }
                         );
                     }
@@ -181,6 +199,7 @@ $app->group(
                     '/services',
                     function () use ($app) {
                         $app->get('/:hostname', 'authToken', 'list_services')->name('get_service_for_host');
+                        $app->post('/:hostname', 'authToken', 'add_service_for_host')->name('add_service_for_host');
                     }
                 );
                 $app->get('/services', 'authToken', 'list_services')->name('list_services');

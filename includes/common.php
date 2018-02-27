@@ -20,22 +20,22 @@ use LibreNMS\Config;
 use LibreNMS\Exceptions\InvalidIpException;
 use LibreNMS\Util\IP;
 
-function generate_priority_icon($priority)
+function generate_priority_label($priority)
 {
     $map = array(
-        "emerg"     => "fa-plus-circle text-danger",
-        "alert"     => "fa-ban text-danger",
-        "crit"      => "fa-minus-circle text-danger",
-        "err"       => "fa-times-circle text-warning",
-        "warning"   => "fa-exclamation-triangle text-warning",
-        "notice"    => "fa-info-circle text-info",
-        "info"      => "fa-info-circle text-info",
-        "debug"     => "fa-bug text-muted",
-        ""          => "fa-info-circle text-info",
+        "emerg"     => "label-danger",
+        "alert"     => "label-danger",
+        "crit"      => "label-danger",
+        "err"       => "label-danger",
+        "warning"   => "label-warning",
+        "notice"    => "label-info",
+        "info"      => "label-info",
+        "debug"     => "label-default",
+        ""          => "label-info",
     );
 
-    $fa_icon = isset($map[$priority]) ? $map[$priority] : 'fa-info-circle text-info';
-    return '<i class="fa '. $fa_icon.' fa-lg" title="'.$priority.'" aria-hidden="true"></i>';
+    $barColor = isset($map[$priority]) ? $map[$priority] : 'label-info';
+    return '<span class="alert-status '.$barColor .'">&nbsp;</span>';
 }
 
 function generate_priority_status($priority)
@@ -55,12 +55,35 @@ function generate_priority_status($priority)
     return isset($map[$priority]) ? $map[$priority] : 0;
 }
 
+function graylog_severity_label($severity)
+{
+    $map = array(
+        "0" => "label-danger",
+        "1" => "label-danger",
+        "2" => "label-danger",
+        "3" => "label-danger",
+        "4" => "label-warning",
+        "5" => "label-info",
+        "6" => "label-info",
+        "7" => "label-default",
+        ""  => "label-info",
+    );
+    $barColor = isset($map[$severity]) ? $map[$severity] : 'label-info';
+    return '<span class="alert-status '.$barColor .'" style="margin-right:8px;float:left;"></span>';
+}
+
 function external_exec($command)
 {
     global $debug,$vdebug;
 
     if ($debug && !$vdebug) {
         $debug_command = preg_replace('/-c [\S]+/', '-c COMMUNITY', $command);
+        $debug_command = preg_replace('/-u [\S]+/', '-u USER', $debug_command);
+        $debug_command = preg_replace('/-U [\S]+/', '-u USER', $debug_command);
+        $debug_command = preg_replace('/-A [\S]+/', '-A PASSWORD', $debug_command);
+        $debug_command = preg_replace('/-X [\S]+/', '-X PASSWORD', $debug_command);
+        $debug_command = preg_replace('/-P [\S]+/', '-P PASSWORD', $debug_command);
+        $debug_command = preg_replace('/-H [\S]+/', '-H HOSTNAME', $debug_command);
         $debug_command = preg_replace('/(udp|udp6|tcp|tcp6):([^:]+):([\d]+)/', '\1:HOSTNAME:\3', $debug_command);
         c_echo('SNMP[%c' . $debug_command . "%n]\n");
     } elseif ($vdebug) {
@@ -335,7 +358,7 @@ function accesspoint_by_id($ap_id, $refresh = '0')
 }
 
 
-function device_by_id_cache($device_id, $refresh = '0')
+function device_by_id_cache($device_id, $refresh = false)
 {
     global $cache;
 
@@ -343,6 +366,8 @@ function device_by_id_cache($device_id, $refresh = '0')
         $device = $cache['devices']['id'][$device_id];
     } else {
         $device = dbFetchRow("SELECT * FROM `devices` WHERE `device_id` = ?", array($device_id));
+        $device['attribs'] = get_dev_attribs($device['device_id']);
+        load_os($device);
 
         //order vrf_lite_cisco with context, this will help to get the vrf_name and instance_name all the time
         $vrfs_lite_cisco = dbFetchRows("SELECT * FROM `vrf_lite_cisco` WHERE `device_id` = ?", array($device_id));
@@ -572,7 +597,7 @@ function format_si($value, $round = '2', $sf = '3')
             $ext  = $sizes[$i];
         }
     } else {
-        $sizes = array('', 'm', 'u', 'n');
+        $sizes = array('', 'm', 'u', 'n', 'p');
         $ext = $sizes[0];
         for ($i = 1; (($i < count($sizes)) && ($value != 0) && ($value <= 0.1)); $i++) {
             $value = $value * 1000;
@@ -1366,83 +1391,78 @@ function ResolveGlues($tables, $target, $x = 0, $hist = array(), $last = array()
     return false;
 }
 
+if (!function_exists('str_contains')) {
+    /**
+     * Determine if a given string contains a given substring.
+     *
+     * @param  string $haystack
+     * @param  string|array $needles
+     * @return bool
+     */
+    function str_contains($haystack, $needles)
+    {
+        foreach ((array)$needles as $needle) {
+            if ($needle != '' && strpos($haystack, $needle) !== false) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
 /**
  * Determine if a given string contains a given substring.
  *
  * @param  string $haystack
  * @param  string|array $needles
- * @param  bool $case_insensitive
  * @return bool
  */
-function str_contains($haystack, $needles, $case_insensitive = false)
+function str_i_contains($haystack, $needles)
 {
-    if ($case_insensitive) {
-        foreach ((array) $needles as $needle) {
-            if ($needle != '' && stripos($haystack, $needle) !== false) {
-                return true;
-            }
-        }
-    } else {
-        foreach ((array) $needles as $needle) {
-            if ($needle != '' && strpos($haystack, $needle) !== false) {
-                return true;
-            }
+    foreach ((array)$needles as $needle) {
+        if ($needle != '' && stripos($haystack, $needle) !== false) {
+            return true;
         }
     }
     return false;
 }
 
-/**
- * Determine if a given string ends with a given substring.
- *
- * @param  string $haystack
- * @param  string|array $needles
- * @param  bool $case_insensitive
- * @return bool
- */
-function ends_with($haystack, $needles, $case_insensitive = false)
-{
-    if ($case_insensitive) {
-        $lower_haystack = strtolower($haystack);
-        foreach ((array)$needles as $needle) {
-            if (strtolower($needle) === substr($lower_haystack, -strlen($needle))) {
-                return true;
-            }
-        }
-    } else {
+if (!function_exists('ends_with')) {
+    /**
+     * Determine if a given string ends with a given substring.
+     *
+     * @param  string $haystack
+     * @param  string|array $needles
+     * @return bool
+     */
+    function ends_with($haystack, $needles)
+    {
         foreach ((array)$needles as $needle) {
             if ((string)$needle === substr($haystack, -strlen($needle))) {
                 return true;
             }
         }
+        return false;
     }
-    return false;
 }
 
-/**
- * Determine if a given string starts with a given substring.
- *
- * @param  string $haystack
- * @param  string|array $needles
- * @param  bool $case_insensitive
- * @return bool
- */
-function starts_with($haystack, $needles, $case_insensitive = false)
-{
-    if ($case_insensitive) {
-        foreach ((array)$needles as $needle) {
-            if ($needle != '' && stripos($haystack, $needle) === 0) {
-                return true;
-            }
-        }
-    } else {
+if (!function_exists('starts_with')) {
+    /**
+     * Determine if a given string starts with a given substring.
+     *
+     * @param  string $haystack
+     * @param  string|array $needles
+     * @return bool
+     */
+    function starts_with($haystack, $needles)
+    {
         foreach ((array)$needles as $needle) {
             if ($needle != '' && strpos($haystack, $needle) === 0) {
                 return true;
             }
         }
+        return false;
     }
-    return false;
 }
 
 function get_auth_ad_user_filter($username)
@@ -1496,11 +1516,16 @@ function print_list($list, $format, $max = 10)
 
 /**
  * @param $value
+ * @param bool $strip_tags
  * @return string
  */
-function clean($value)
+function clean($value, $strip_tags = true)
 {
-    return strip_tags(mres($value));
+    if ($strip_tags === true) {
+        return strip_tags(mres($value));
+    } else {
+        return mres($value);
+    }
 }
 
 /**
@@ -1537,14 +1562,16 @@ function display($value, $purifier_config = array())
  * $device['os'] must be set
  *
  * @param array $device
- * @throws Exception No OS to load
  */
 function load_os(&$device)
 {
     global $config;
+
     if (!isset($device['os'])) {
-        throw new Exception('No OS to load');
+        d_echo('No OS to load');
+        return;
     }
+
     $tmp_os = Symfony\Component\Yaml\Yaml::parse(
         file_get_contents($config['install_dir'] . '/includes/definitions/' . $device['os'] . '.yaml')
     );
